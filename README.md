@@ -2,6 +2,8 @@
 
 A local web application to browse, like, and get recommendations for ArXiv papers (specifically `astro-ph`).
 
+![Screenshot of the Interface](screenshot.png)
+
 ## Features
 *   **Local Database:** Stores papers and your interactions in a local SQLite file.
 *   **ArXiv Fetcher:** Pulls the latest papers from `astro-ph`.
