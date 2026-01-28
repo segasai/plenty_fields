@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+*.db
+server.log
+server.pid
+.ipynb_checkpoints/
+.env
+venv/
+*.egg-info/
