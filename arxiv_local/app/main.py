@@ -136,6 +136,18 @@ async def train_model(background_tasks: BackgroundTasks):
     background_tasks.add_task(task_train_only)
     return {"status": "Training started"}
 
+@app.get("/debug_paper")
+def debug_paper(q: str, db: Session = Depends(get_db)):
+    paper = db.query(models.Paper).filter(models.Paper.title.contains(q)).first()
+    if paper:
+        return {
+            "id": paper.id, 
+            "title": paper.title, 
+            "authors": paper.authors,
+            "abstract": paper.abstract
+        }
+    return {"error": "Not found"}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="127.0.0.1", port=8001)

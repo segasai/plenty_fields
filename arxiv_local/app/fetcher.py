@@ -38,6 +38,14 @@ def fetch_papers(db: Session, max_results=500):
 
         # Parse date
         pub_date = dateutil.parser.parse(entry.published).date()
+        
+        # Adjust Weekend dates to Monday
+        # 5 = Saturday, 6 = Sunday
+        if pub_date.weekday() == 5:
+            pub_date += datetime.timedelta(days=2)
+        elif pub_date.weekday() == 6:
+            pub_date += datetime.timedelta(days=1)
+            
         upd_date = dateutil.parser.parse(entry.updated).date()
         
         # Authors
@@ -47,11 +55,20 @@ def fetch_papers(db: Session, max_results=500):
         # entry.tags is a list of dicts [{'term': 'astro-ph.CO', ...}, ...]
         primary_cat = entry.arxiv_primary_category['term'] if 'arxiv_primary_category' in entry else entry.tags[0]['term']
 
+        # Ensure balanced $ to prevent MathJax bleeding
+        title = entry.title.replace('\n', ' ')
+        if title.count('$') % 2 != 0:
+            title += "$"
+            
+        abstract = entry.summary.replace('\n', ' ')
+        if abstract.count('$') % 2 != 0:
+            abstract += " $"
+
         new_paper = models.Paper(
             id=paper_id,
-            title=entry.title.replace('\n', ' '),
+            title=title,
             authors=authors,
-            abstract=entry.summary.replace('\n', ' '),
+            abstract=abstract,
             published_date=pub_date,
             updated_date=upd_date,
             arxiv_category=primary_cat,
