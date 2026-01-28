@@ -1,6 +1,6 @@
 # ArXiv Local Recommender
 
-A local web application to browse, like, and get recommendations for ArXiv papers (specifically `astro-ph`).
+A local web application to browse, like, and get recommendations for ArXiv papers (specifically `astro-ph`). This tool is designed as a local, privacy-first replacement for [benty-fields](https://benty-fields.com/).
 
 ![Screenshot of the Interface](screenshot.png)
 
