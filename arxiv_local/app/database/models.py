@@ -23,6 +23,7 @@ class Interaction(Base):
     id = Column(Integer, primary_key=True, index=True)
     paper_id = Column(String, index=True) # Foreign key to Paper.id logically
     is_liked = Column(Boolean, default=False)
+    is_zotero = Column(Boolean, default=False)
     viewed_date = Column(DateTime, server_default=func.now())
 
 class FetchLog(Base):

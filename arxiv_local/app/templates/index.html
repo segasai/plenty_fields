@@ -52,6 +52,10 @@
             color: #e74c3c !important;
             font-weight: bold;
         }
+        .zotero-added {
+            color: #2980b9 !important;
+            font-weight: bold;
+        }
         .controls {
             position: sticky;
             top: 0;
@@ -118,6 +122,7 @@
                         <form action="/fetch" method="post" style="display:inline;">
                             <button type="submit" class="btn btn-primary btn-sm" title="Fetches approximately last 3-4 weeks of papers">Fetch Recent (2000)</button>
                         </form>
+                        <button onclick="syncZotero()" class="btn btn-outline-info btn-sm ms-2" title="Sync all liked papers to Zotero">Sync Liked to Z</button>
                         <button onclick="trainModel()" class="btn btn-success btn-sm ms-2">Update Recs</button>
                     </div>
                 </div>
@@ -134,6 +139,11 @@
                                         id="like-btn-{{ paper.id }}"
                                         onclick="toggleLike('{{ paper.id }}', event)">
                                     {% if paper.id in liked_ids %}♥ Liked{% else %}♡ Like{% endif %}
+                                </button>
+                                <button class="btn btn-link btn-sm p-0 text-decoration-none ms-2 {% if paper.id in zotero_ids %}zotero-added{% else %}text-muted{% endif %}" 
+                                        id="zotero-btn-{{ paper.id }}"
+                                        onclick="addToZotero('{{ paper.id }}', event)">
+                                    {% if paper.id in zotero_ids %}Z Added{% else %}Z Add{% endif %}
                                 </button>
                                 <span class="badge bg-light text-dark border ms-1">{{"%.2f"|format(paper.score)}}</span>
                             </div>
@@ -187,6 +197,45 @@
             btn.innerHTML = "♡ Like";
             btn.classList.remove("liked");
             btn.classList.add("text-muted");
+        }
+    }
+
+    async function addToZotero(paperId, event) {
+        event.stopPropagation();
+        const btn = document.getElementById(`zotero-btn-${paperId}`);
+        const oldText = btn.innerHTML;
+        btn.innerHTML = "Adding...";
+        
+        try {
+            const response = await fetch(`/zotero/${paperId}`, { method: 'POST' });
+            if (!response.ok) {
+                const text = await response.text();
+                throw new Error(`Server returned ${response.status}: ${text}`);
+            }
+            const data = await response.json();
+            
+            if (data.status === "success") {
+                btn.innerHTML = "Z Added";
+                btn.classList.add("zotero-added");
+                btn.classList.remove("text-muted");
+            } else {
+                alert("Error: " + (data.message || "Unknown error"));
+                btn.innerHTML = "Z Add";
+            }
+        } catch (error) {
+            console.error(error);
+            alert("Error: " + error.message);
+            btn.innerHTML = "Z Add";
+        }
+    }
+
+    async function syncZotero() {
+        const response = await fetch('/sync_zotero', { method: 'POST' });
+        const data = await response.json();
+        alert(data.message);
+        if (data.status === "success") {
+            // Reload page after a bit to show updated status
+            setTimeout(() => window.location.reload(), 2000);
         }
     }
 

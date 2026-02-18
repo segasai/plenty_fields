@@ -4,7 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from .database import models, database
-from . import fetcher, recommender
+from . import fetcher, recommender, zotero_service
 import datetime
 
 models.Base.metadata.create_all(bind=database.engine)
@@ -68,11 +68,11 @@ async def read_root(request: Request, date: str = None, db: Session = Depends(ge
 
     # Get likes for these papers
     paper_ids = [p.id for p in papers]
-    likes = db.query(models.Interaction).filter(
-        models.Interaction.paper_id.in_(paper_ids),
-        models.Interaction.is_liked == True
+    interactions = db.query(models.Interaction).filter(
+        models.Interaction.paper_id.in_(paper_ids)
     ).all()
-    liked_ids = {l.paper_id for l in likes}
+    liked_ids = {i.paper_id for i in interactions if i.is_liked}
+    zotero_ids = {i.paper_id for i in interactions if i.is_zotero}
 
     prev_date = target_date - datetime.timedelta(days=1)
     next_date = target_date + datetime.timedelta(days=1)
@@ -84,6 +84,7 @@ async def read_root(request: Request, date: str = None, db: Session = Depends(ge
         "prev_date": prev_date,
         "next_date": next_date,
         "liked_ids": liked_ids,
+        "zotero_ids": zotero_ids,
         "history": history
     })
 
@@ -130,6 +131,57 @@ async def like_paper(paper_id: str, db: Session = Depends(get_db)):
     
     db.commit()
     return {"status": "success", "is_liked": interaction.is_liked}
+
+@app.post("/zotero/{paper_id}")
+async def add_to_zotero(paper_id: str, db: Session = Depends(get_db)):
+    paper = db.query(models.Paper).filter(models.Paper.id == paper_id).first()
+    if not paper:
+        return {"status": "error", "message": "Paper not found"}
+    
+    result = zotero_service.add_arxiv_paper(paper)
+    
+    if result["status"] == "success":
+        interaction = db.query(models.Interaction).filter(models.Interaction.paper_id == paper_id).first()
+        if interaction:
+            interaction.is_zotero = True
+        else:
+            interaction = models.Interaction(paper_id=paper_id, is_zotero=True)
+            db.add(interaction)
+        db.commit()
+        
+    return result
+
+@app.post("/sync_zotero")
+async def sync_zotero(background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    # Find papers that are liked but not yet in Zotero
+    liked_not_zotero_ids = db.query(models.Paper.id).join(
+        models.Interaction, models.Paper.id == models.Interaction.paper_id
+    ).filter(
+        models.Interaction.is_liked == True,
+        models.Interaction.is_zotero == False
+    ).all()
+    
+    liked_not_zotero_ids = [r[0] for r in liked_not_zotero_ids]
+    
+    if not liked_not_zotero_ids:
+        return {"status": "success", "message": "All liked papers already in Zotero."}
+    
+    def sync_task(ids_to_sync):
+        inner_db = database.SessionLocal()
+        try:
+            for paper_id in ids_to_sync:
+                paper = inner_db.query(models.Paper).filter(models.Paper.id == paper_id).first()
+                if paper:
+                    res = zotero_service.add_arxiv_paper(paper)
+                    if res["status"] == "success":
+                        interaction = inner_db.query(models.Interaction).filter(models.Interaction.paper_id == paper.id).first()
+                        interaction.is_zotero = True
+                        inner_db.commit()
+        finally:
+            inner_db.close()
+            
+    background_tasks.add_task(sync_task, liked_not_zotero_ids)
+    return {"status": "success", "message": f"Syncing {len(liked_not_zotero_ids)} papers in background."}
 
 @app.post("/train")
 async def train_model(background_tasks: BackgroundTasks):
