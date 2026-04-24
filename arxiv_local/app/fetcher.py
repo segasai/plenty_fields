@@ -1,5 +1,6 @@
 import feedparser
 import datetime
+from zoneinfo import ZoneInfo
 from sqlalchemy.orm import Session
 from .database import models
 import dateutil.parser
@@ -12,57 +13,34 @@ CATEGORIES = [
     "astro-ph.HE", "astro-ph.IM", "astro-ph.SR"
 ]
 
+ARXIV_ANNOUNCEMENT_TZ = ZoneInfo("America/New_York")
+ARXIV_CUTOFF_TIME_ET = datetime.time(14, 0, 0)
+
 def get_announcement_date(published_dt: datetime.datetime) -> datetime.date:
     """
-    Calculates the ArXiv announcement date based on the published/submission timestamp.
-    Logic (approximate based on 14:00 EST / 19:00 UTC cutoff):
-    - Submissions < 19:00 UTC are considered 'same day' batch (effectively).
-    - Submissions >= 19:00 UTC are 'next day' batch.
-    
-    Then mapping batch day to announcement:
-    - Mon batch (Fri 19:00 - Mon 19:00) -> Tue
-    - Tue batch (Mon 19:00 - Tue 19:00) -> Wed
-    - Wed batch (Tue 19:00 - Wed 19:00) -> Thu
-    - Thu batch (Wed 19:00 - Thu 19:00) -> Fri
-    - Fri batch (Thu 19:00 - Fri 19:00) -> Mon
-    
-    Simplified Logic for date `d` (where d is date of timestamp if < 19:00, else date+1):
-    - Mon -> Tue (+1)
-    - Tue -> Wed (+1)
-    - Wed -> Thu (+1)
-    - Thu -> Fri (+1)
-    - Fri -> Mon (+3)
-    - Sat -> Tue (+3) (Sat covers Fri post-cutoff)
-    - Sun -> Tue (+2) (Sun covers Fri post-cutoff/Mon pre-cutoff)
+    Calculates the arXiv announcement date from the API submission timestamp.
+
+    arXiv returns submission timestamps in UTC, but the announcement cutoff is
+    14:00 US Eastern Time with DST applied. We therefore convert to ET first,
+    assign the submission to the correct cutoff bucket, roll weekend buckets
+    forward to Monday, then map that bucket to the next announcement day.
     """
-    # 1. Apply Cutoff
-    # Check time component. 19:00 UTC = 14:00 EST (Standard).
-    # We use 19:00 as a hard cutoff.
-    cutoff_time = datetime.time(19, 0, 0)
-    
-    base_date = published_dt.date()
-    if published_dt.time() >= cutoff_time:
-        base_date += datetime.timedelta(days=1)
-        
-    # 2. Map to Announcement Day
-    weekday = base_date.weekday() # 0=Mon, 6=Sun
-    
-    if weekday == 0: # Mon -> Tue
-        return base_date + datetime.timedelta(days=1)
-    elif weekday == 1: # Tue -> Wed
-        return base_date + datetime.timedelta(days=1)
-    elif weekday == 2: # Wed -> Thu
-        return base_date + datetime.timedelta(days=1)
-    elif weekday == 3: # Thu -> Fri
-        return base_date + datetime.timedelta(days=1)
-    elif weekday == 4: # Fri -> Mon
-        return base_date + datetime.timedelta(days=3)
-    elif weekday == 5: # Sat -> Tue
-        return base_date + datetime.timedelta(days=3)
-    elif weekday == 6: # Sun -> Tue
-        return base_date + datetime.timedelta(days=2)
-    
-    return base_date # Should not reach
+    if published_dt.tzinfo is None:
+        published_dt = published_dt.replace(tzinfo=datetime.timezone.utc)
+
+    published_dt_et = published_dt.astimezone(ARXIV_ANNOUNCEMENT_TZ)
+    cutoff_bucket_date = published_dt_et.date()
+
+    if published_dt_et.time() >= ARXIV_CUTOFF_TIME_ET:
+        cutoff_bucket_date += datetime.timedelta(days=1)
+
+    while cutoff_bucket_date.weekday() >= 5:
+        cutoff_bucket_date += datetime.timedelta(days=1)
+
+    if cutoff_bucket_date.weekday() == 4:
+        return cutoff_bucket_date + datetime.timedelta(days=3)
+
+    return cutoff_bucket_date + datetime.timedelta(days=1)
 
 def fetch_papers(db: Session, max_results=500):
     # Construct query for all astro-ph categories

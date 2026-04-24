@@ -119,7 +119,8 @@
                         <a href="/?date={{ next_date }}" class="btn btn-outline-secondary btn-sm">Next &rarr;</a>
                     </div>
                     <div>
-                        <form action="/fetch" method="post" style="display:inline;">
+                        <form action="/fetch" method="post" style="display:inline;" onsubmit="this.querySelector('button').innerHTML='Fetching...';">
+                            <input type="hidden" name="date" value="{{ current_date.strftime('%Y-%m-%d') }}">
                             <button type="submit" class="btn btn-primary btn-sm" title="Fetches approximately last 3-4 weeks of papers">Fetch Recent (2000)</button>
                         </form>
                         <button onclick="syncZotero()" class="btn btn-outline-info btn-sm ms-2" title="Sync all liked papers to Zotero">Sync Liked to Z</button>

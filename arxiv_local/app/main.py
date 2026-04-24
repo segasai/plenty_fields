@@ -115,9 +115,11 @@ def task_train_only():
         db.close()
 
 @app.post("/fetch")
-async def trigger_fetch(background_tasks: BackgroundTasks):
+async def trigger_fetch(background_tasks: BackgroundTasks, date: str = Form(None)):
     # We don't need the dependency db here, the task creates its own
     background_tasks.add_task(task_fetch_and_score)
+    if date:
+        return RedirectResponse(url=f"/?date={date}", status_code=303)
     return RedirectResponse(url="/", status_code=303)
 
 @app.post("/like/{paper_id}")
