@@ -77,7 +77,7 @@ async def read_root(request: Request, date: str = None, db: Session = Depends(ge
     prev_date = target_date - datetime.timedelta(days=1)
     next_date = target_date + datetime.timedelta(days=1)
 
-    return templates.TemplateResponse("index.html", {
+    return templates.TemplateResponse(request, "index.html", {
         "request": request,
         "papers": papers,
         "current_date": target_date,
