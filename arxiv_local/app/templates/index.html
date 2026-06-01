@@ -117,6 +117,10 @@
                         <a href="/?date={{ prev_date }}" class="btn btn-outline-secondary btn-sm">&larr; Previous</a>
                         <span class="mx-3 fw-bold fs-5">{{ current_date.strftime('%A, %d %B %Y') }}</span>
                         <a href="/?date={{ next_date }}" class="btn btn-outline-secondary btn-sm">Next &rarr;</a>
+                        <form action="/unview" method="post" style="display:inline;">
+                            <input type="hidden" name="date" value="{{ current_date.strftime('%Y-%m-%d') }}">
+                            <button type="submit" class="btn btn-outline-warning btn-sm ms-2" title="Mark this day as unviewed and return home">Mark Unread</button>
+                        </form>
                     </div>
                     <div>
                         <form action="/fetch" method="post" style="display:inline;" onsubmit="this.querySelector('button').innerHTML='Fetching...';">

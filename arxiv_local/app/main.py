@@ -122,6 +122,41 @@ async def trigger_fetch(background_tasks: BackgroundTasks, date: str = Form(None
         return RedirectResponse(url=f"/?date={date}", status_code=303)
     return RedirectResponse(url="/", status_code=303)
 
+@app.post("/unview")
+async def unview_date(date: str = Form(...), db: Session = Depends(get_db)):
+    try:
+        target_date = datetime.datetime.strptime(date, "%Y-%m-%d").date()
+        viewed_entry = db.query(models.ViewedDate).filter(models.ViewedDate.date == target_date).first()
+        if viewed_entry:
+            db.delete(viewed_entry)
+            db.commit()
+            
+        # Find another date to redirect to so this date remains unviewed
+        # We redirect to the most recent already-viewed (read) date in the DB (excluding target_date)
+        viewed_dates_query = db.query(models.ViewedDate.date).order_by(models.ViewedDate.date.desc()).all()
+        viewed_dates = [d[0] for d in viewed_dates_query if d[0] != target_date]
+        
+        redirect_date = None
+        if viewed_dates:
+            redirect_date = viewed_dates[0]
+        else:
+            # Fallback to the next available date in history if no viewed dates exist
+            available_dates_query = db.query(models.Paper.published_date).distinct().order_by(models.Paper.published_date.desc()).limit(60).all()
+            available_dates = [d[0] for d in available_dates_query]
+            if target_date in available_dates:
+                idx = available_dates.index(target_date)
+                if idx + 1 < len(available_dates):
+                    redirect_date = available_dates[idx + 1]
+                elif idx - 1 >= 0:
+                    redirect_date = available_dates[idx - 1]
+                
+        if redirect_date:
+            return RedirectResponse(url=f"/?date={redirect_date}", status_code=303)
+    except ValueError:
+        pass
+    return RedirectResponse(url="/", status_code=303)
+
+
 @app.post("/like/{paper_id}")
 async def like_paper(paper_id: str, db: Session = Depends(get_db)):
     interaction = db.query(models.Interaction).filter(models.Interaction.paper_id == paper_id).first()
